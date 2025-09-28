@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Questionnaire client — [Nom du cabinet]</title>
+  <meta name="description" content="Questionnaire client — Cabinet de gestion de patrimoine. Accessible, empathique, statique (PDF + mailto)." />
+  <!-- Import provided CSS (glassmorphism etc.) -->
+  <link rel="stylesheet" href="../css/style.css" />
+  <!-- jsPDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <style>
+    /* Small local overrides & utilities */
+    .sr-only { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px,1px,1px,1px); white-space: nowrap; }
+    .form-grid { display: grid; gap: 1rem; }
+    .field { margin-bottom: 0.6rem; }
+    label { display:block; font-weight:600; margin-bottom:0.4rem; }
+    input[type="text"], input[type="email"], select, textarea { width:100%; padding:0.8rem; border-radius:10px; border:1px solid rgba(10,20,40,0.08); background: rgba(255,255,255,0.9); }
+    .small { font-size:0.9rem; color:var(--text-secondary); }
+    .muted { color:var(--text-secondary); font-size:0.95rem; }
+    .progress-wrap { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:1200; width: min(920px, calc(100% - 40px)); }
+    .progress-bar { height:10px; background:rgba(255,255,255,0.3); border-radius:999px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+    .progress-bar > i { display:block; height:100%; width:0%; background: linear-gradient(90deg,var(--primary),var(--accent)); transition:width .35s ease; }
+    .required { color:var(--accent); margin-left:6px; font-weight:700; }
+    .error { color: #c22; font-size:0.9rem; margin-top:0.3rem; }
+    .char-count { font-size:0.85rem; color:var(--text-secondary); text-align:right; }
+    .nps { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .nps button { min-width:36px; height:36px; border-radius:8px; border:1px solid rgba(10,20,40,0.08); background:transparent; cursor:pointer; }
+    .nps button[aria-pressed="true"] { background:var(--primary); color:white; border-color:var(--primary); transform:translateY(-2px); }
+    .toast { position:fixed; right:20px; bottom:20px; background:var(--primary); color:white; padding:0.8rem 1rem; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.2); display:none; z-index:1300; }
+    .visible { display:block !important; }
+    .actions { display:flex; gap:1rem; flex-wrap:wrap; margin-top:1rem; }
+    .hint { font-size:0.85rem; color:var(--text-secondary); }
+    .glass-card.form-card { padding: 2rem; margin-top: 6rem; }
+    .important { font-weight:700; color:var(--primary); }
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .btn, .hero, .card { transition: none !important; animation: none !important; }
+    }
+
+    /* === SLIDER (Tolérance au risque) === */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  outline: none;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  transition: transform 0.2s ease, background 0.3s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: var(--primary);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* === SELECT (custom dropdown) === */
+select {
+  appearance: none;
+  background: rgba(255,255,255,0.9) url("data:image/svg+xml;utf8,<svg fill='%23000' height='20' viewBox='0 0 24 24' width='20'><path d='M7 10l5 5 5-5z'/></svg>") no-repeat right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
+  border: 1px solid rgba(0,0,0,0.1);
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0,120,255,0.2);
+}
+
+/* === CHECKBOX & RADIO === */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--primary);
+  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  margin-right: 8px;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background 0.2s, transform 0.2s;
+}
+input[type="radio"] {
+  border-radius: 50%;
+}
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: var(--primary);
+  transform: scale(1.1);
+}
+input[type="checkbox"]:checked::after,
+input[type="radio"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: inherit;
+  background: white;
+}
+label:hover input[type="checkbox"],
+label:hover input[type="radio"] {
+  border-color: var(--accent);
+}
+
+/* === Smooth transitions === */
+select, input[type="checkbox"], input[type="radio"] {
+  transition: all 0.25s ease;
+}
+
+    
+  </style>
+</head>
+<body>
+  <!-- Progress (fixed top) -->
+  <div class="progress-wrap" aria-hidden="false">
+    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+      <i id="progressFill" style="width:0%"></i>
+    </div>
+  </div>
+
+  <!-- Navbar (floating glass) -->
+  <nav class="navbar" role="navigation" aria-label="Navigation principale">
+    <div class="logo" aria-hidden="true">Akane Patrimoine</div>
+    <ul>
+      <li><a href="#profil">Profil</a></li>
+      <li><a href="#finance">Finances</a></li>
+      <li><a href="#preferences">Préférences</a></li>
+      <li><a href="#feedback">Feedback</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero / header -->
+  <section class="hero" aria-hidden="false">
+    <div class="content glass-card">
+      <h1>Questionnaire client — Akane Patrimoine</h1>
+      <p class="muted">Votre avis nous aide à mieux vous accompagner. Le questionnaire prend ~5 minutes. Les réponses sont confidentielles.</p>
+      <p class="hint">Remarque : à la fin, un récapitulatif PDF est généré — vous pouvez l'envoyer directement par e-mail.</p>
+    </div>
+  </section>
+
+  <!-- Form container -->
+  <main class="section">
+    <div class="glass-card form-card" role="region" aria-labelledby="formTitle">
+      <h2 id="formTitle" class="section-title">Aidez-nous à mieux vous connaître</h2>
+      <form id="surveyForm" class="form-grid" autocomplete="on" novalidate>
+        <!-- SECTION A: Profil -->
+        <fieldset id="profil" class="card" aria-labelledby="profilLegend">
+          <p id="profilLegend" style="margin-bottom: 3%;"><u><strong>A — Profil & contact</strong></u></p>
+          <div class="field">
+            <label for="anonymousToggle"><input id="anonymousToggle" type="checkbox" /> Je souhaite répondre <strong>anonymement</strong></label>
+            <p class="small">Si coché, le nom et l'email ne seront pas inclus dans la sortie.</p>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field" id="nameField">
+              <label for="fullName">Nom & prénom <span class="required">*</span></label>
+              <input id="fullName" name="fullName" type="text" inputmode="text" aria-required="true" aria-describedby="nameHelp" />
+              <div id="nameHelp" class="small">Sera masqué si vous choisissez l'anonymat.</div>
+              <div class="error" id="errName" aria-live="polite"></div>
+            </div>
+
+            <div class="field" id="emailField">
+              <label for="email">Email <span class="required">*</span></label>
+              <input id="email" name="email" type="email" inputmode="email" aria-required="true" aria-describedby="emailHelp" />
+              <div id="emailHelp" class="small">Utilisé uniquement pour vous recontacter si vous l'autorisez.</div>
+              <div class="error" id="errEmail" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="ageBand">Âge <span class="required">*</span></label>
+              <select id="ageBand" name="ageBand" aria-required="true">
+                <option value="">-- Choisir --</option>
+                <option value="30-39">30–39</option>
+                <option value="40-49">40–49</option>
+                <option value="50-59">50–59</option>
+                <option value="60+">60+</option>
+              </select>
+              <div class="error" id="errAge" aria-live="polite"></div>
+            </div>
+
+            <div class="field">
+              <label for="family">Situation familiale <span class="required">*</span></label>
+              <select id="family" name="family" aria-required="true">
+                <option value="">-- Choisir --</option>
+                <option value="Célibataire">Célibataire</option>
+                <option value="En couple">En couple</option>
+                <option value="Marié">Marié</option>
+                <option value="Pacsé">Pacsé</option>
+                <option value="Avec enfants">Avec enfants</option>
+              </select>
+              <div class="error" id="errFamily" aria-live="polite"></div>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- SECTION B: Finances & projets -->
+        <fieldset id="finance" class="card" aria-labelledby="financeLegend">
+          <p id="financeLegend" style="margin-bottom: 3%;"><u><strong>B — Situation financière & projets</strong></u></p>
+
+          <div class="field">
+            <label for="netIncomeMonthly">Revenu net mensuel du foyer (estimation) <span class="required">*</span></label>
+            <select id="netIncomeMonthly" name="netIncomeMonthly" aria-required="true">
+              <option value="">-- Choisir --</option>
+              <option value="<3k">&lt; 3 000 €</option>
+              <option value="3-6k">3 000–6 000 €</option>
+              <option value="6-10k">6 000–10 000 €</option>
+              <option value="10-20k">10 000–20 000 €</option>
+              <option value=">20k">&gt; 20 000 €</option>
+              
+            </select>
+            <div class="error" id="errIncome" aria-live="polite"></div>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="savings">Épargne disponible <span class="required">*</span></label>
+              <select id="savings" name="savings" aria-required="true">
+                <option value="">-- Choisir --</option>
+                <option value="<50k">&lt; 50 k€</option>
+                <option value="50-200k">50–200 k€</option>
+                <option value="200-500k">200–500 k€</option>
+                <option value=">500k">&gt; 500 k€</option>
+              </select>
+              <div class="error" id="errSavings" aria-live="polite"></div>
+            </div>
+
+            <div class="field">
+              <label for="horizon">Horizon principal <span class="required">*</span></label>
+              <select id="horizon" name="horizon" aria-required="true">
+                <option value="">-- Choisir --</option>
+                <option value="<3">Moins de 3 ans</option>
+                <option value="3-7">3–7 ans</option>
+                <option value="7-15">7–15 ans</option>
+                <option value=">15">Plus de 15 ans</option>
+              </select>
+              <div class="error" id="errHorizon" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Objectifs prioritaires (plusieurs réponses possibles) <span class="required">*</span></label>
+            <div role="group" aria-labelledby="goalsLabel">
+              <div><label><input type="checkbox" name="goals" value="Préparer la retraite" /> Préparer la retraite</label></div>
+              <div><label><input type="checkbox" name="goals" value="Transmettre un patrimoine" /> Transmettre un patrimoine</label></div>
+              <div><label><input type="checkbox" name="goals" value="Investir en Bourse" /> Investir en Bourse</label></div>
+              <div><label><input type="checkbox" name="goals" value="Immobilier" /> Immobilier</label></div>
+              <div><label><input type="checkbox" name="goals" value="Optimisation fiscale" /> Optimisation fiscale</label></div>
+              <div><label><input type="checkbox" name="goals" value="Assurance-vie" /> Assurance-vie</label></div>
+              <div><label><input type="checkbox" name="goals" value="Autre" /> Autre (précisez ci-dessous)</label></div>
+            </div>
+            <textarea id="goalOther" name="goalOther" rows="2" placeholder="Si 'Autre', précisez..." maxlength="300"></textarea>
+            <div class="error" id="errGoals" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label for="risk">Tolérance au risque : <span id="riskLabel">5</span>/10 <span class="required">*</span></label>
+            <input id="risk" name="risk" type="range" min="1" max="10" step="1" value="5" aria-valuemin="1" aria-valuemax="10" aria-valuenow="5" />
+            <div class="small">1 = Préservation du capital · 10 = Recherche de performance</div>
+            <div class="error" id="errRisk" aria-live="polite"></div>
+          </div>
+        </fieldset>
+
+        <!-- SECTION C: Préférences -->
+        <fieldset id="preferences" class="card" aria-labelledby="prefLegend">
+          <p id="prefLegend" style="margin-bottom: 3%;"><u><strong>C — Préférences d’accompagnement</strong></u></p>
+
+          <div class="field">
+            <label>Format de rendez-vous préféré <span class="required">*</span></label>
+            <div role="radiogroup" aria-label="Format RDV">
+              <label><input type="radio" name="meeting" value="Présentiel" /> Présentiel</label>
+              <label><input type="radio" name="meeting" value="Visio" /> Visio</label>
+              <label><input type="radio" name="meeting" value="Téléphone" /> Téléphone</label>
+              <label><input type="radio" name="meeting" value="Indifférent" /> Indifférent</label>
+            </div>
+            <div class="error" id="errMeeting" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label>Fréquence de suivi souhaitée <span class="required">*</span></label>
+            <div role="radiogroup" aria-label="Fréquence">
+              <label><input type="radio" name="frequency" value="Trimestriel" /> Trimestriel</label>
+              <label><input type="radio" name="frequency" value="Semestriel" /> Semestriel</label>
+              <label><input type="radio" name="frequency" value="Annuel" /> Annuel</label>
+              <label><input type="radio" name="frequency" value="À la demande" /> À la demande</label>
+            </div>
+            <div class="error" id="errFrequency" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label>Canaux d'information souhaités</label>
+            <div><label><input type="checkbox" name="channels" value="Email" /> Email</label></div>
+            <div><label><input type="checkbox" name="channels" value="WhatsApp" /> WhatsApp</label></div>
+            <div><label><input type="checkbox" name="channels" value="Appel" /> Appel</label></div>
+            <div><label><input type="checkbox" name="channels" value="Newsletter" /> Newsletter</label></div>
+            <div><label><input type="checkbox" name="channels" value="Rapports PDF" /> Rapports PDF</label></div>
+            <div class="small">Cochez les canaux sur lesquels vous souhaitez être contacté.</div>
+          </div>
+
+          <div class="field">
+            <label>Niveau d'explications attendu <span class="required">*</span></label>
+            <select id="explanations" name="explanations" aria-required="true">
+              <option value="">-- Choisir --</option>
+              <option value="Synthétique">Très synthétique</option>
+              <option value="Pédagogique">Pédagogique</option>
+              <option value="Détaillé">Détaillé</option>
+              <option value="Technique">Technique</option>
+            </select>
+            <div class="error" id="errExplanations" aria-live="polite"></div>
+          </div>
+        </fieldset>
+
+        <!-- SECTION D: Feedback -->
+        <fieldset id="feedback" class="card" aria-labelledby="feedLegend">
+          <p id="feedLegend" style="margin-bottom: 3%;"><u><strong>D — Feedback sur nos services</strong></u></p>
+
+          <div class="field">
+            <label>Clarté de nos explications (0–10) <span class="required">*</span></label>
+            <div class="nps" role="group" aria-label="Clarté">
+              <!-- NPS interactive -->
+              <div id="clarityNps" class="nps" role="radiogroup" aria-labelledby="clarityLabel"></div>
+            </div>
+            <div class="error" id="errClarity" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label>Disponibilité & réactivité (0–10) <span class="required">*</span></label>
+            <div id="availabilityNps" class="nps" role="radiogroup"></div>
+            <div class="error" id="errAvailability" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label>Satisfaction globale (0–10) <span class="required">*</span></label>
+            <div id="satisfactionNps" class="nps" role="radiogroup"></div>
+            <div class="error" id="errSatisfaction" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label for="improvements">Quels services/devrions-nous améliorer ? (300–500 caractères)</label>
+            <textarea id="improvements" name="improvements" rows="5" maxlength="500" aria-describedby="improvHelp"></textarea>
+            <div class="char-count" id="improvCount">500</div>
+          </div>
+        </fieldset>
+
+        <!-- CONSENTS & ACTIONS -->
+        <div class="card" role="region" aria-labelledby="consentLegend">
+          <h3 id="consentLegend">Consentements & envoi</h3>
+
+          <div class="field">
+            <label><input id="rgpd" type="checkbox" aria-required="true" /> J'accepte que mes réponses soient utilisées dans le cadre du cabinet (RGPD) <span class="required">*</span></label>
+            <button type="button" id="rgpdInfoBtn" class="btn btn-ghost" style="padding:0.5rem 1rem; margin-left:8px;">Voir la politique</button>
+            <div class="error" id="errRgpd" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label><input id="consentContact" type="checkbox" /> J'accepte d'être contacté(e) concernant ces réponses</label>
+          </div>
+
+          <div class="actions">
+            <button type="button" id="downloadPdfBtn" class="btn">Télécharger le PDF</button>
+            <button type="button" id="sendEmailBtn" class="btn">Envoyer par email</button>
+           
+          </div>
+
+          
+        </div>
+
+        <!-- final message placeholder -->
+        <div id="finalMessage" class="card" aria-live="polite" style="display:none; text-align:center;">
+          <h3>Merci pour votre confiance 🙏</h3>
+          <p class="muted">Nous avons bien reçu vos réponses. Un récapitulatif vous a été proposé.</p>
+        </div>
+
+      </form>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Modal RGPD -->
+  <div id="rgpdModal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1400; align-items:center; justify-content:center;">
+    <div role="document" class="glass-card" style="max-width:700px; margin:auto;">
+      <h3>Politique de confidentialité (résumé)</h3>
+      <p class="muted">Vos réponses servent uniquement à améliorer notre accompagnement. Elles sont conservées X mois. Vous pouvez demander la suppression via contact@votre-cabinet.fr. [TODO: remplacer par votre politique complète].</p>
+      <div style="text-align:right; margin-top:1rem;">
+        <button id="rgpdClose" class="btn">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ======= CONFIG / TODOs =======
+  const CONFIG = {
+    CABINET_NAME: "Akane Patrimoine", // TODO: personnaliser
+    CONTACT_EMAIL: "contact@votre-cabinet.fr", // TODO: remplacer par l'email réel
+    LOGO_PATH: "assets/logo.png", // TODO: remplacer si nécessaire
+    EMAILJS: { // TODO: activer seulement si tu fournis les clés
+      ENABLED: false,
+      SERVICE_ID: "YOUR_SERVICE_ID",
+      TEMPLATE_ID: "YOUR_TEMPLATE_ID",
+      PUBLIC_KEY: "YOUR_PUBLIC_KEY"
+    },
+    PDF_FILENAME: "questionnaire_recap.pdf",
+    APP_VERSION: "1.0.0"
+  };
+  // ============================
+
+  // Wait for jsPDF
+  window.addEventListener('load', () => {
+    // Utilities
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const form = $('#surveyForm');
+    const progressFill = $('#progressFill');
+    const progressBar = $('#progressBar');
+
+    // Required inputs list for progress calc (ids or selector)
+    const requiredSelectors = [
+      '#ageBand', '#family',
+      '#netIncomeMonthly', '#savings', '#horizon', // finance
+      // goals: at least one checkbox
+      'input[name="goals"]',
+      '#risk',
+      // preferences
+      'input[name="meeting"]', 'input[name="frequency"]', '#explanations',
+      // feedback NPS groups: clarity, availability, satisfaction (we'll store via data attr)
+      // RGPD
+      '#rgpd'
+    ];
+
+    // Initialize fields references
+    const anonymousToggle = $('#anonymousToggle');
+    const nameField = $('#nameField');
+    const emailField = $('#emailField');
+    const fullName = $('#fullName');
+    const email = $('#email');
+    const rgpd = $('#rgpd');
+    const consentContact = $('#consentContact');
+    const downloadPdfBtn = $('#downloadPdfBtn');
+    const sendEmailBtn = $('#sendEmailBtn');
+    const saveDraftBtn = $('#saveDraftBtn');
+    const importBtn = $('#importBtn');
+    const importJson = $('#importJson');
+    const improv = $('#improvements');
+    const improvCount = $('#improvCount');
+    const risk = $('#risk');
+    const riskLabel = $('#riskLabel');
+    const toast = $('#toast');
+    const finalMessage = $('#finalMessage');
+    const rgpdModal = $('#rgpdModal');
+    const rgpdInfoBtn = $('#rgpdInfoBtn');
+    const rgpdClose = $('#rgpdClose');
+
+    // NPS rendering helper
+    function renderNps(targetId) {
+      const container = document.getElementById(targetId);
+      for (let i=0;i<=10;i++){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = i;
+        btn.setAttribute('aria-pressed','false');
+        btn.dataset.value = i;
+        btn.addEventListener('click', (e) => {
+          // roving pressed
+          container.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false'));
+          btn.setAttribute('aria-pressed','true');
+          container.dataset.value = i;
+          updateProgress();
+        });
+        // keyboard accessibility
+        btn.addEventListener('keydown', (ev) => {
+          if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') {
+            ev.preventDefault();
+            const next = btn.nextElementSibling || container.firstElementChild;
+            next.focus();
+          } else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') {
+            ev.preventDefault();
+            const prev = btn.previousElementSibling || container.lastElementChild;
+            prev.focus();
+          }
+        });
+        container.appendChild(btn);
+      }
+      container.dataset.value = ''; // empty initially
+    }
+
+    renderNps('clarityNps');
+    renderNps('availabilityNps');
+    renderNps('satisfactionNps');
+
+    // Handle char count
+    improv.addEventListener('input', () => {
+      const left = 500 - improv.value.length;
+      improvCount.textContent = left;
+      updateProgress();
+    });
+
+    // Risk display
+    risk.addEventListener('input', () => {
+      riskLabel.textContent = risk.value;
+      risk.setAttribute('aria-valuenow', risk.value);
+      updateProgress();
+    });
+
+    // Anonymat toggle
+    anonymousToggle.addEventListener('change', () => {
+      if (anonymousToggle.checked) {
+        nameField.style.display = 'none';
+        emailField.style.display = 'none';
+        fullName.removeAttribute('aria-required'); fullName.dataset.wasRequired = "true";
+        email.removeAttribute('aria-required'); email.dataset.wasRequired = "true";
+      } else {
+        nameField.style.display = '';
+        emailField.style.display = '';
+        fullName.setAttribute('aria-required','true'); delete fullName.dataset.wasRequired;
+        email.setAttribute('aria-required','true'); delete email.dataset.wasRequired;
+      }
+      updateProgress();
+      saveToLocal();
+    });
+
+    // RGPD modal
+    rgpdInfoBtn.addEventListener('click', () => {
+      rgpdModal.style.display = 'flex';
+      rgpdModal.setAttribute('aria-hidden','false');
+      rgpdClose.focus();
+    });
+    rgpdClose.addEventListener('click', () => {
+      rgpdModal.style.display = 'none';
+      rgpdModal.setAttribute('aria-hidden','true');
+    });
+
+    // IntersectionObserver for section animations
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        if (en.isIntersecting) {
+          en.target.style.transform = 'translateY(0)'; en.target.style.opacity = '1';
+        } else {
+          en.target.style.transform = 'translateY(12px)'; en.target.style.opacity = '0.6';
+        }
+      });
+    }, { threshold: 0.12 });
+
+    $$('.card').forEach(c => {
+      c.style.transition = 'transform .6s ease, opacity .6s ease';
+      c.style.transform = 'translateY(12px)'; c.style.opacity = '0.6';
+      io.observe(c);
+    });
+
+    // Save / Load LocalStorage
+    function saveToLocal() {
+      const json = gatherData();
+      localStorage.setItem('akane_survey_draft', JSON.stringify(json));
+    }
+    function loadFromLocal() {
+      const s = localStorage.getItem('akane_survey_draft');
+      if (!s) return false;
+      try {
+        const obj = JSON.parse(s);
+        populateFromJson(obj);
+        showToast('Brouillon chargé depuis votre navigateur.');
+        return true;
+      } catch(e){
+        return false;
+      }
+    }
+    // auto-save every change
+    form.addEventListener('input', () => saveToLocal());
+
+    // Export JSON (save draft)
+    saveDraftBtn.addEventListener('click', () => {
+      const data = gatherData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download='survey_draft.json'; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+      showToast('Brouillon exporté (JSON).');
+    });
+
+    // Import JSON
+    importBtn.addEventListener('click', () => importJson.click());
+    importJson.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const obj = JSON.parse(ev.target.result);
+          populateFromJson(obj);
+          showToast('Brouillon importé.');
+        } catch(err) {
+          showToast('Fichier JSON invalide.', true);
+        }
+      };
+      reader.readAsText(f);
+    });
+
+    // Populate form from JSON
+    function populateFromJson(data) {
+      if (!data) return;
+      anonymousToggle.checked = !!data.anonymous;
+      if (anonymousToggle.checked) { nameField.style.display='none'; emailField.style.display='none'; }
+      fullName.value = data.identity?.fullName || '';
+      email.value = data.identity?.email || '';
+      $('#ageBand').value = data.profile?.ageBand || '';
+      $('#family').value = data.profile?.family || '';
+      $('#netIncomeMonthly').value = data.finance?.netIncomeMonthly || '';
+      $('#savings').value = data.finance?.savings || '';
+      $('#horizon').value = data.finance?.horizon || '';
+      // goals
+      $$('input[name="goals"]').forEach(cb => cb.checked = (data.finance?.goals || []).includes(cb.value));
+      $('#goalOther').value = data.finance?.goalOther || '';
+      $('#risk').value = data.finance?.risk || 5; riskLabel.textContent = $('#risk').value;
+      // preferences
+      if (data.preferences?.meeting) { $$('input[name="meeting"]').forEach(r=>r.checked = r.value===data.preferences.meeting); }
+      if (data.preferences?.frequency) { $$('input[name="frequency"]').forEach(r=>r.checked = r.value===data.preferences.frequency); }
+      $$('input[name="channels"]').forEach(cb => cb.checked = (data.preferences?.channels || []).includes(cb.value));
+      $('#explanations').value = data.preferences?.explanations || '';
+      // feedback
+      setNpsValue('clarityNps', data.feedback?.clarity);
+      setNpsValue('availabilityNps', data.feedback?.availability);
+      setNpsValue('satisfactionNps', data.feedback?.satisfaction);
+      $('#improvements').value = data.feedback?.improvements || '';
+      improvCount.textContent = 500 - $('#improvements').value.length;
+      // consents
+      $('#rgpd').checked = !!data.consents?.rgpd;
+      $('#consentContact').checked = !!data.consents?.contact;
+      updateProgress();
+    }
+
+    function setNpsValue(containerId, val) {
+      if (typeof val === 'undefined' || val === null || val === '') return;
+      const container = $('#'+containerId);
+      const btns = container.querySelectorAll('button');
+      btns.forEach(b=> { if (b.dataset.value == String(val)) b.setAttribute('aria-pressed','true'); else b.setAttribute('aria-pressed','false'); });
+      container.dataset.value = val;
+    }
+
+    // gather data to JSON schema
+    function gatherData() {
+      const goals = $$('input[name="goals"]').filter(cb=>cb.checked).map(cb=>cb.value);
+      const channels = $$('input[name="channels"]').filter(cb=>cb.checked).map(cb=>cb.value);
+      return {
+        anonymous: !!anonymousToggle.checked,
+        identity: {
+          fullName: fullName.value || null,
+          email: email.value || null
+        },
+        profile: {
+          ageBand: $('#ageBand').value || null,
+          family: $('#family').value || null
+        },
+        finance: {
+          netIncomeMonthly: $('#netIncomeMonthly').value || null,
+          savings: $('#savings').value || null,
+          horizon: $('#horizon').value || null,
+          goals: goals,
+          goalOther: $('#goalOther').value || null,
+          risk: Number($('#risk').value) || null
+        },
+        preferences: {
+          meeting: $$('input[name="meeting"]').find(r=>r.checked)?.value || null,
+          frequency: $$('input[name="frequency"]').find(r=>r.checked)?.value || null,
+          channels: channels,
+          explanations: $('#explanations').value || null
+        },
+        feedback: {
+          clarity: $('#clarityNps').dataset.value || null,
+          availability: $('#availabilityNps').dataset.value || null,
+          satisfaction: $('#satisfactionNps').dataset.value || null,
+          improvements: $('#improvements').value || null
+        },
+        consents: {
+          rgpd: !!$('#rgpd').checked,
+          contact: !!$('#consentContact').checked
+        },
+        meta: {
+          submittedAt: new Date().toISOString(),
+          version: CONFIG.APP_VERSION
+        }
+      };
+    }
+
+    // Validation
+    function validateAll() {
+      let ok = true;
+      // clear errors
+      $$('.error').forEach(e=>e.textContent='');
+
+      // If not anonymous, name and email required
+      if (!anonymousToggle.checked) {
+        if (!fullName.value.trim()) { $('#errName').textContent="Veuillez indiquer votre nom."; ok=false; }
+        if (!email.value.trim()) { $('#errEmail').textContent="Veuillez indiquer votre email."; ok=false; }
+        else {
+          const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!re.test(email.value.trim())) { $('#errEmail').textContent="Email invalide."; ok=false; }
+        }
+      }
+
+      if (!$('#ageBand').value) { $('#errAge').textContent="Choisissez une tranche d'âge."; ok=false; }
+      if (!$('#family').value) { $('#errFamily').textContent="Indiquez votre situation familiale."; ok=false; }
+
+      if (!$('#netIncomeMonthly').value) { $('#errIncome').textContent="Sélectionnez un palier de revenu."; ok=false; }
+      if (!$('#savings').value) { $('#errSavings').textContent="Sélectionnez une fourchette d'épargne."; ok=false; }
+      if (!$('#horizon').value) { $('#errHorizon').textContent="Indiquez votre horizon."; ok=false; }
+
+      if ($$('input[name="goals"]').every(cb=>!cb.checked)) { $('#errGoals').textContent="Sélectionnez au moins un objectif."; ok=false; }
+
+      if (!$('#risk').value) { $('#errRisk').textContent="Indiquez votre tolérance au risque."; ok=false; }
+
+      if (!$$('input[name="meeting"]').some(r=>r.checked)) { $('#errMeeting').textContent="Choisissez un format de RDV."; ok=false; }
+      if (!$$('input[name="frequency"]').some(r=>r.checked)) { $('#errFrequency').textContent="Choisissez une fréquence."; ok=false; }
+      if (!$('#explanations').value) { $('#errExplanations').textContent="Choisissez un niveau d'explications."; ok=false; }
+
+      // NPS
+      if (!$('#clarityNps').dataset.value) { $('#errClarity').textContent="Notez la clarté."; ok=false; }
+      if (!$('#availabilityNps').dataset.value) { $('#errAvailability').textContent="Notez la disponibilité."; ok=false; }
+      if (!$('#satisfactionNps').dataset.value) { $('#errSatisfaction').textContent="Notez la satisfaction."; ok=false; }
+
+      // RGPD
+      if (!$('#rgpd').checked) { $('#errRgpd').textContent="Vous devez accepter la politique de confidentialité."; ok=false; }
+
+      // improvements length
+      if ($('#improvements').value.length > 500) { $('#improvCount').textContent = '0'; $('#errImprov').textContent = "Maximum 500 caractères."; ok=false; }
+
+      return ok;
+    }
+
+    // Progress calculation (based on selected required fields)
+    function updateProgress() {
+      const totalRequired = 13; // tuned to number of required elements for progress estimate
+      let filled = 0;
+      // simple checks
+      if (anonymousToggle.checked) {
+        // skip name/email
+      } else {
+        if (fullName.value.trim()) filled++;
+        if (email.value.trim()) filled++;
+      }
+      if ($('#ageBand').value) filled++;
+      if ($('#family').value) filled++;
+      if ($('#netIncomeMonthly').value) filled++;
+      if ($('#savings').value) filled++;
+      if ($('#horizon').value) filled++;
+      if ($$('input[name="goals"]').some(cb=>cb.checked)) filled++;
+      if ($('#risk').value) filled++;
+      if ($$('input[name="meeting"]').some(r=>r.checked)) filled++;
+      if ($$('input[name="frequency"]').some(r=>r.checked)) filled++;
+      if ($('#explanations').value) filled++;
+      if ($('#clarityNps').dataset.value) filled++;
+      if ($('#availabilityNps').dataset.value) filled++;
+      if ($('#satisfactionNps').dataset.value) filled++;
+      if ($('#rgpd').checked) filled++;
+
+      // Cap filled to totalRequired for percentage calculation
+      const percent = Math.min(100, Math.round((filled / totalRequired) * 100));
+      progressFill.style.width = percent + '%';
+      progressBar.setAttribute('aria-valuenow', percent);
+      return percent;
+    }
+
+    // show toast
+    function showToast(msg, isError=false) {
+      toast.textContent = msg;
+      toast.style.background = isError ? '#c22' : 'var(--primary)';
+      toast.classList.add('visible');
+      setTimeout(()=> toast.classList.remove('visible'), 3500);
+    }
+
+    // PDF generation (jsPDF)
+    async function generatePdfBlob(data) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:'pt', format:'a4' });
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const usableWidth = pageWidth - margin*2;
+      let y = 60;
+
+      // Header: Logo (if exists) + title + date
+      try {
+        // try to add logo if path valid - best-effort; will not block if missing
+        const img = new Image();
+        img.src = CONFIG.LOGO_PATH;
+        await new Promise((res, rej) => {
+          img.onload = () => {
+            // scale
+            const imgW = 80; const imgH = (img.height/img.width) * imgW;
+            doc.addImage(img, 'PNG', margin, 20, imgW, imgH);
+            res();
+          }
+          img.onerror = () => res();
+        });
+      } catch(e){ /* ignore */ }
+
+      doc.setFontSize(16);
+      doc.text(`${CONFIG.CABINET_NAME} — Questionnaire client`, margin + 100, 40);
+      doc.setFontSize(10);
+      doc.text(`Date : ${new Date(data.meta.submittedAt).toLocaleString()}`, margin + 100, 58);
+
+      doc.setLineWidth(0.5);
+      doc.line(margin, 80, pageWidth - margin, 80);
+
+      doc.setFontSize(11);
+      const addKV = (k, v) => {
+        const keyWidth = 130;
+        const xKey = margin;
+        const xVal = margin + keyWidth + 8;
+        const lineHeight = 14;
+        const split = doc.splitTextToSize(String(v || ''), usableWidth - keyWidth - 20);
+        doc.setFont(undefined, 'bold'); doc.text(k + ':', xKey, y);
+        doc.setFont(undefined, 'normal'); doc.text(split, xVal, y);
+        y += Math.max(lineHeight, split.length * 12) + 6;
+        if (y > doc.internal.pageSize.getHeight() - 80) { doc.addPage(); y = margin; }
+      };
+
+      // Identity
+      if (data.anonymous) {
+        addKV('Identité', 'Réponse anonyme');
+      } else {
+        addKV('Nom', data.identity.fullName || '');
+        addKV('Email', data.identity.email || '');
+      }
+
+      doc.setFont(undefined,'bold'); doc.text('Profil', margin, y); y += 16;
+      addKV('Âge', data.profile.ageBand || '');
+      addKV('Situation', data.profile.family || '');
+
+      doc.setFont(undefined,'bold'); doc.text('Finances & Projets', margin, y); y += 16;
+      addKV('Revenu net foyer', data.finance.netIncomeMonthly || '');
+      addKV('Épargne disponible', data.finance.savings || '');
+      addKV('Horizon', data.finance.horizon || '');
+      addKV('Objectifs', (data.finance.goals || []).concat(data.finance.goalOther ? ['— '+data.finance.goalOther] : []).join(', '));
+      addKV('Tolérance au risque', (data.finance.risk || '') + '/10');
+
+      doc.setFont(undefined,'bold'); doc.text('Préférences d’accompagnement', margin, y); y += 16;
+      addKV('RDV', data.preferences.meeting || '');
+      addKV('Fréquence', data.preferences.frequency || '');
+      addKV('Canaux', (data.preferences.channels || []).join(', '));
+      addKV('Niveau explication', data.preferences.explanations || '');
+
+      doc.setFont(undefined,'bold'); doc.text('Feedback', margin, y); y += 16;
+      addKV('Clarté', (data.feedback.clarity || '') + '/10');
+      addKV('Disponibilité', (data.feedback.availability || '') + '/10');
+      addKV('Satisfaction', (data.feedback.satisfaction || '') + '/10');
+      addKV('Améliorations', data.feedback.improvements || '');
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i=1;i<=pageCount;i++){
+        doc.setPage(i);
+        doc.setFontSize(9);
+        doc.text(`${CONFIG.CABINET_NAME} • ${CONFIG.CONTACT_EMAIL}`, margin, doc.internal.pageSize.getHeight() - 30);
+        doc.text(`Page ${i} / ${pageCount}`, doc.internal.pageSize.getWidth() - margin - 60, doc.internal.pageSize.getHeight() - 30);
+      }
+
+      return doc.output('blob');
+    }
+
+    // Download PDF
+    downloadPdfBtn.addEventListener('click', async () => {
+      if (!validateAll()) { showToast('Veuillez corriger les erreurs avant de générer le PDF.', true); return; }
+      const data = gatherData();
+      showToast('Génération du PDF...');
+      try {
+        const blob = await generatePdfBlob(data);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = CONFIG.PDF_FILENAME; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showToast('PDF généré — il a été téléchargé sur votre appareil.');
+        finalMessage.style.display = 'block';
+        saveToLocal();
+      } catch(e) {
+        console.error(e);
+        showToast('Erreur lors de la génération du PDF.', true);
+      }
+    });
+
+    // Send Email (Mode A default: mailto)
+    sendEmailBtn.addEventListener('click', async () => {
+      if (!validateAll()) { showToast('Veuillez corriger les erreurs avant l\'envoi.', true); return; }
+      const data = gatherData();
+      showToast('Génération du PDF et ouverture du client mail...');
+      try {
+        const blob = await generatePdfBlob(data);
+        // Create downloadable blob so the user can attach it manually if necessary
+        const url = URL.createObjectURL(blob);
+        // Optionally attempt to attach via mailto - mailto cannot attach, so provide instructions
+        const subject = encodeURIComponent(`[Questionnaire Client] ${data.anonymous ? 'Anonyme' : data.identity.fullName} — ${new Date(data.meta.submittedAt).toLocaleDateString()}`);
+        const bodyText = [
+          `${CONFIG.CABINET_NAME} — Questionnaire Client`,
+          `Date: ${new Date(data.meta.submittedAt).toLocaleString()}`,
+          ``,
+          `Identité: ${data.anonymous ? 'Anonyme' : (data.identity.fullName + ' <' + data.identity.email + '>')}`,
+          ``,
+          `[Profil]`,
+          `Âge: ${data.profile.ageBand} | Situation: ${data.profile.family}`,
+          ``,
+          `[Finances & Projets]`,
+          `Revenu net foyer: ${data.finance.netIncomeMonthly}`,
+          `Épargne dispo: ${data.finance.savings}`,
+          `Horizon: ${data.finance.horizon}`,
+          `Objectifs: ${(data.finance.goals||[]).join(', ')}`,
+          `Tolérance au risque: ${data.finance.risk}/10`,
+          ``,
+          `[Préférences d’accompagnement]`,
+          `RDV: ${data.preferences.meeting} | Fréquence: ${data.preferences.frequency}`,
+          `Canaux: ${(data.preferences.channels||[]).join(', ')}`,
+          `Niveau d'explications: ${data.preferences.explanations}`,
+          ``,
+          `[Feedback]`,
+          `Clarté: ${data.feedback.clarity}/10 | Disponibilité: ${data.feedback.availability}/10 | Satisfaction: ${data.feedback.satisfaction}/10`,
+          `Améliorations: ${data.feedback.improvements || '-'}`,
+          ``,
+          `Consentements RGPD: ${data.consents.rgpd ? 'Oui' : 'Non'} | Contact: ${data.consents.contact ? 'Oui' : 'Non'}`,
+          ``,
+          `ATTENTION: Veuillez joindre le PDF récapitulatif généré automatiquement (téléchargé via le lien ci-dessous) au message si votre client mail ne le prend pas en pièce jointe.`,
+          `PDF (téléchargement automatique) : ${url}`,
+        ].join('\n');
+
+        // Open mailto
+        const mailto = `mailto:${CONFIG.CONTACT_EMAIL}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
+        window.open(mailto, '_blank');
+
+        // Also create an automatic download (so user can attach easily)
+        const a = document.createElement('a');
+        a.href = url; a.download = CONFIG.PDF_FILENAME; document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+
+        finalMessage.style.display = 'block';
+        showToast('Mail ouvert — joignez le PDF si nécessaire.');
+        // OPTIONAL: If EmailJS enabled, call sendViaEmailJs(blob, data) (code commented further down)
+      } catch(e) {
+        console.error(e);
+        showToast('Erreur lors de l\'envoi.', true);
+      }
+    });
+
+    // EmailJS (Mode B) - comment block: uncomment and set keys to enable
+    /*
+    async function sendViaEmailJs(pdfBlob, data) {
+      if (!CONFIG.EMAILJS.ENABLED) throw new Error('EmailJS non configuré');
+      // Convert blob to base64
+      const base64 = await blobToBase64(pdfBlob);
+      const payload = {
+        service_id: CONFIG.EMAILJS.SERVICE_ID,
+        template_id: CONFIG.EMAILJS.TEMPLATE_ID,
+        user_id: CONFIG.EMAILJS.PUBLIC_KEY,
+        template_params: {
+          subject: `[Questionnaire] ${data.anonymous ? 'Anonyme' : data.identity.fullName}`,
+          email_to: CONFIG.CONTACT_EMAIL,
+          message: JSON.stringify(data, null, 2),
+          attachment: base64
+        }
+      };
+      // EmailJS direct endpoint call (requires CORS allowed for public key)
+      const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('EmailJS envoi échoué');
+      showToast('Email envoyé via EmailJS.');
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+    */
+
+    // Simple helper to pre-fill if there is a draft
+    loadFromLocal();
+
+    // Accessibility: map Enter on focused NPS button to click
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        const active = document.activeElement;
+        if (active && active.matches && active.matches('.nps button')) {
+          active.click();
+        }
+      }
+    });
+
+    // Auto update progress periodically
+    setInterval(updateProgress, 400);
+
+    // Submit prevention (we don't want default submit)
+    form.addEventListener('submit', (e) => { e.preventDefault(); });
+
+    // small helper: populate placeholder values (if any)
+    // ----------------------------------------------------------------
+
+  }); // end load
+  </script>
+</body>
+</html>
